@@ -1,3 +1,6 @@
 *.pyc
 *.vtk
 .ipynb_checkpoints/
+test.*
+*.npy
+*.png

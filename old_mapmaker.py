@@ -193,12 +193,10 @@ def los_dump_from_data(data,domain,deltas,smax,f,
     #step=domain['step']
     #cstring='x%dy%dz%d' % (center[0],center[1],center[2])
     #outdir='%s%s-%d/Nside%d-%s' % (losdir,step,smax,Nside,cstring)
- 
-    x0,y0,z0,dx,dy,dz,vy0 = get_index_all(domain,Nside,center,smax,deltas)
-
     #outfile='%s/%s.npy' % (outdir,f)
     outfile='%s.npy' % (f)
     if not os.path.isfile(outfile) or force_write:
+        x0,y0,z0,dx,dy,dz,vy0 = get_index_all(domain,Nside,center,smax,deltas)
         print('interpolating and writing: %s' % f)
         data=extend_data(domain,data,smax)
         dlos=data[z0  ,y0  ,x0  ]*(1-dz)*(1-dy)*(1-dx) +\
