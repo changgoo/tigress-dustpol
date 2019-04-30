@@ -251,7 +251,6 @@ __kernel void PolHealpixMapping(
       TAU        +=  DTAU ;
       colden     +=  sx*dens ;   // GL*H, later scaled with DX => H*pc
 
-#if 0
       if (Y_SHEAR!=0.0f) {
          // We are dealing with a shearing box simulation -- assume periodicity in the
          // x and y directions, shear Y_SHEAR [root grid cells] between the high and the low x edges
@@ -272,7 +271,6 @@ __kernel void PolHealpixMapping(
             }         
          }
       }
-#endif
       
    } // while ind>=0  --- loop until ray exits the model volume or MAXLOS is reached
    

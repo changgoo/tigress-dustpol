@@ -77,10 +77,23 @@ if (0):
 # ========================================================================================
 GPU    =  1                   # GPU=0 => use CPU, GPU=1 => use GPU
 dx     =  ds.domain['dx'][0]  # Cell size [pc]
+dy     =  ds.domain['dx'][1]  # Cell size [pc]
 nside  =  eval(sys.argv[1])         # Healpix size parameter, 12*nside*nside pixels
 ext    =   0.0                # Extinction  [1/pc] for unit H density
 obspos =  [1.0, 1.0, 1.0]     # Position of the observer (x,y,z) [pc] relative to the centre of the cube
-maxlos = 512.
+maxlos = 3500.
+shear  = True
+qshear = 1.0
+Omega  = 0.028
+tsim   = ds.domain['time']
+Lx     = ds.domain['right_edge'][0] - ds.domain['left_edge'][0]
+Ly     = ds.domain['right_edge'][1] - ds.domain['left_edge'][1]
+qomL   = qshear*Omega*Lx
+if shear:
+    yshear = np.mod(qomL*tsim,Ly)/dy
+else:
+    yshear = 0.0
+print(yshear)
 
 from HPmapper import *
 import healpy
@@ -103,14 +116,14 @@ else:   # Plot (I, Q, U, N)
     Snu  /= np.ravel(nH)*dx
     # =====================================================================
     I, Q, U, N  = PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz, GPU=GPU,
-                                   y_shear=0.0, maxlos=maxlos, p0=0.2, polred=0)
+                                   y_shear=yshear, maxlos=maxlos, p0=0.2, polred=0)
     print("PolHealpixMapper: %.2f seconds" % (time.time()-t0))
     ##  NSIDE=1024   CPU= 5.7 seconds, GPU=1.2 seconds
     ##  NSIDE=2048   CPU=20.1 seconds, GPU=2.2 seconds  ... 1.74 seconds with cached kernel
     plt.figure(1, figsize=(7,4.5))
     healpy.mollview(I, fig=1, sub=221, title='I', margins=[0.015, 0.020, 0.015, 0.02], norm='log', min=0.001, max=30.0)
-    healpy.mollview(Q, fig=1, sub=222, title='Q', margins=[0.015, 0.020, 0.015, 0.02], norm='hist')
-    healpy.mollview(-U, fig=1, sub=223, title='U', margins=[0.015, 0.020, 0.015, 0.02], norm='hist')
+    healpy.mollview(Q, fig=1, sub=222, title='Q', margins=[0.015, 0.020, 0.015, 0.02], norm='hist', min=-1, max=1,cmap=plt.cm.coolwarm)
+    healpy.mollview(-U, fig=1, sub=223, title='U', margins=[0.015, 0.020, 0.015, 0.02], norm='hist', min=-1, max=1,cmap=plt.cm.coolwarm)
     healpy.mollview(N, fig=1, sub=224, title='N', margins=[0.015, 0.020, 0.015, 0.02], norm='log')
     plt.savefig('IQUN.png')
     plt.clf()
@@ -118,36 +131,39 @@ else:   # Plot (I, Q, U, N)
 # =====================================================================
 # With old_mapmaker
 
-Snu = np.fromfile('test.Snu', np.float32).reshape(NZ, NY, NX)
+if (1):
+    Snu = np.fromfile('test.Snu', np.float32).reshape(NZ, NY, NX)
 
-from old_mapmaker import los_dump_from_data,calc_IQU
+    from old_mapmaker import los_dump_from_data,calc_IQU
 
-domain=ds.domain
-domain['shear']=True
-domain['qshear']=1.0
-domain['Omega']=0.028
-domain['fields']=['density','magnetic_field1','magnetic_field2','magnetic_field3']
+    domain=ds.domain
+    domain['shear']=True
+    domain['qshear']=1.0
+    domain['Omega']=0.028
+    domain['fields']=['density','magnetic_field1','magnetic_field2','magnetic_field3']
 
-Nside=nside
-center=obspos
-smax=maxlos
+    Nside=nside
+    center=obspos
+    smax=maxlos
+    rewrite=False
 
-t0 = time.time()
-for data,field in zip([nH,Bx,By,Bz],['density','magnetic_field1','magnetic_field2','magnetic_field3']):
-    los_dump_from_data(data,domain,dx,smax,field,Nside=Nside,center=center,force_write=True)
-los_dump_from_data(Snu,domain,dx,smax,'Snu',Nside=Nside,center=center,force_write=True)
-print("Remapping Data Cube: %.2f seconds" % (time.time()-t0))
+    t0 = time.time()
+    for data,field in zip([nH,Bx,By,Bz],['density','magnetic_field1','magnetic_field2','magnetic_field3']):
+        los_dump_from_data(data,domain,dx,smax,field,Nside=Nside,center=center,force_write=rewrite)
+    los_dump_from_data(Snu,domain,dx,smax,'Snu',Nside=Nside,center=center,force_write=rewrite)
+    print("Remapping Data Cube: %.2f seconds" % (time.time()-t0))
 
-IQUN=calc_IQU(domain,dx,smax,Nside=Nside,center=center)
+    IQUN=calc_IQU(domain,dx,smax,Nside=Nside,center=center)
+    print(IQUN[0].shape)
 
-I_cgk=IQUN[0].sum(axis=1)
-Q_cgk=IQUN[1].sum(axis=1)
-U_cgk=IQUN[2].sum(axis=1)
-N_cgk=IQUN[3].sum(axis=1)
+    I_cgk=IQUN[0].sum(axis=1)
+    Q_cgk=IQUN[1].sum(axis=1)
+    U_cgk=IQUN[2].sum(axis=1)
+    N_cgk=IQUN[3].sum(axis=1)
 
-plt.figure(1, figsize=(7,4.5))
-healpy.mollview(I_cgk, fig=1, sub=221, title='I', margins=[0.015, 0.020, 0.015, 0.02], norm='log', min=0.001, max=30.0)
-healpy.mollview(Q_cgk, fig=1, sub=222, title='Q', margins=[0.015, 0.020, 0.015, 0.02], norm='hist')
-healpy.mollview(U_cgk, fig=1, sub=223, title='U', margins=[0.015, 0.020, 0.015, 0.02], norm='hist')
-healpy.mollview(N_cgk, fig=1, sub=224, title='N', margins=[0.015, 0.020, 0.015, 0.02], norm='log')
-plt.savefig('IQUN_cgk.png')
+    plt.figure(1, figsize=(7,4.5))
+    healpy.mollview(I_cgk, fig=1, sub=221, title='I', margins=[0.015, 0.020, 0.015, 0.02], norm='log', min=0.001, max=30.0)
+    healpy.mollview(Q_cgk, fig=1, sub=222, title='Q', margins=[0.015, 0.020, 0.015, 0.02], norm='hist', min=-1, max=1,cmap=plt.cm.coolwarm)
+    healpy.mollview(U_cgk, fig=1, sub=223, title='U', margins=[0.015, 0.020, 0.015, 0.02], norm='hist', min=-1, max=1,cmap=plt.cm.coolwarm)
+    healpy.mollview(N_cgk, fig=1, sub=224, title='N', margins=[0.015, 0.020, 0.015, 0.02], norm='log')
+    plt.savefig('IQUN_cgk.png')

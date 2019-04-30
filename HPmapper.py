@@ -55,7 +55,7 @@ def HealpixMapper(dx, nside, ext, obspos, nH, Snu, GPU=0):
     LOCAL       =  [8, 32][GPU>0]
     GLOBAL      =  12*nside*nside
     if (GLOBAL%LOCAL!=0):  GLOBAL = ((GLOBAL/32)+1)*32
-    source      =  file("kernel_HP_map.c").read()
+    source      =  open("kernel_HP_map.c").read()
     # model grid dimensions (NX, NY, NZ),  Healpix map size ~ nside, model cell size ~ dx [pc]
     OPT         =  " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D p0=%.4ef -D MAXLOS=%.4ef" % \
                        (NZ,      NY,      NX,      nside,      dx,         0.2,     1.0e30) # p0 and MAXLOS not used
@@ -111,7 +111,7 @@ def PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz, GPU=0, y_shear
     LOCAL       =  [8, 32][GPU>0]
     GLOBAL      =  NPIX
     if (GLOBAL%LOCAL!=0):  GLOBAL = ((GLOBAL/32)+1)*32
-    source      =  file("kernel_HP_map.c").read()
+    source      =  open("kernel_HP_map.c").read()
     OPT         =  \
     " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D MAXLOS=%.4ef -D POLRED=%d -D p0=%.4ef" % \
     (NZ, NY, NX, nside, dx, maxlos/dx, polred, p0)  # note -- in kernel [maxlos]=GL, not pc
