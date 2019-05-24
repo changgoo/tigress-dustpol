@@ -57,8 +57,8 @@ def HealpixMapper(dx, nside, ext, obspos, nH, Snu, GPU=0):
     if (GLOBAL%LOCAL!=0):  GLOBAL = ((GLOBAL/32)+1)*32
     source      =  open("kernel_HP_map.c").read()
     # model grid dimensions (NX, NY, NZ),  Healpix map size ~ nside, model cell size ~ dx [pc]
-    OPT         =  " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D p0=%.4ef -D MAXLOS=%.4ef" % \
-                       (NZ,      NY,      NX,      nside,      dx,         0.2,     1.0e30) # p0 and MAXLOS not used
+    OPT         =  " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D p0=%.4ef -D MAXLOS=%.4ef -D MINLOS=%.4ef" % \
+                       (NZ,      NY,      NX,      nside,      dx,         0.2,     1.0e30, 0.) # p0 and MAXLOS not used
     program_map =  cl.Program(context, source).build(OPT)
     kernel_map  =  program_map.HealpixMapping
     kernel_map.set_scalar_arg_dtypes([np.float32, clarray.cltypes.float3, None, None, None, None])
@@ -81,7 +81,7 @@ def HealpixMapper(dx, nside, ext, obspos, nH, Snu, GPU=0):
     
 
 def PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz, GPU=0, y_shear=0.0, \
-                     maxlos=1e30, p0=0.2, polred=0):
+                     maxlos=1e30, minlos=0., p0=0.2, polred=0):
     """
     Usage:
         I, Q, U =  PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz)
@@ -113,8 +113,8 @@ def PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz, GPU=0, y_shear
     if (GLOBAL%LOCAL!=0):  GLOBAL = ((GLOBAL/32)+1)*32
     source      =  open("kernel_HP_map.c").read()
     OPT         =  \
-    " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D MAXLOS=%.4ef -D POLRED=%d -D p0=%.4ef" % \
-    (NZ, NY, NX, nside, dx, maxlos/dx, polred, p0)  # note -- in kernel [maxlos]=GL, not pc
+    " -D NZ=%d -D NY=%d -D NX=%d -D NSIDE=%d -D DX=%.5ef -D MAXLOS=%.4ef -D MINLOS=%.4ef -D POLRED=%d -D p0=%.4ef" % \
+    (NZ, NY, NX, nside, dx, maxlos/dx, minlos/dx, polred, p0)  # note -- in kernel [maxlos]=GL, not pc
     program_map =  cl.Program(context, source).build(OPT)
     kernel_map  =  program_map.PolHealpixMapping
     kernel_map.set_scalar_arg_dtypes([np.float32, clarray.cltypes.float3, None, None, None, None, None, None, np.float32])

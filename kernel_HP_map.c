@@ -218,60 +218,61 @@ __kernel void PolHealpixMapping(
       dens    =  DENS[oind] ;
       sx      =  GetStep(&POS, &DIR, &ind) ;  // step length in GL units where one cell == 1.0 GL
       los    +=  sx  ;                        // los in grid units, to be compared with MAXLOS
-      if (los>MAXLOS) {                       // restricted integration length (MAXLOS in grid units)
-         ind = -1 ;  POS.z = -1.0f ;
-         sx  =  MAXLOS-(los-sx) ;             // actual step, up to distance MAXLOS, [MAXLOS]=GL
-      }
-      DTAU    =  sx*dens*EXT ;                // [sx]=GL, [EXT] = extinction/H/GL
-      // for LOS along x,  Psi = atan2(By, Bz), gamma  = atan2(Bx, sqrt(By*By+Bz*Bz)) ;
-      //   Psi    = angle east of north, in the plane of the sky --- full 2*pi !!!
-      //   Psi is in IAU convention   tan(2*Psi) = U/Q, Psi = 0.5*atan2(U,Q)
-      //   gamma  = angle away from the POS = 90 - angle wrt. DIR
-      //    cos(gamma) = sin(complement)
-      BN.x = Bx[oind] ;  BN.y = By[oind] ;  BN.z = Bz[oind] ;
-#if (POLRED>0)
-      p = length(BN) ; sss
-#endif
-      BN = normalize(BN) ;
-      
-      // Psi angle from North to East -- assumes that RA points to left
-      // add 0.5*PI so that this becomes angle of polarised emission, not of B
-      float Psi  =  0.5*PI+atan2(dot(BN, HRA), dot(BN, HDE)) ; // ANGLE FOR POLARISED EMISSION, NOT B
-      float cc   =  0.99999f - 0.99998f * dot(BN, DIR)*dot(BN, DIR) ; // cos(gamma)^2
-      // [sx]=GL, [EMIT]=emission/pc/H  ==>  sx*DX = step lenth in parsecs
-      if (DTAU<1.0e-3f) {
-         sz = exp(-TAU) *  (1.0f-0.5f*DTAU)        * (sx*DX) * EMIT[oind]*dens ;
-      } else {
-         sz = exp(-TAU) * ((1.0f-exp(-DTAU))/DTAU) * (sx*DX) * EMIT[oind]*dens ;
-      }
-      
-      PHOTONS.x  +=      sz * (1.0f-p*(cc-0.6666667f)) ;   // I
-      PHOTONS.y  +=  p * sz * cos(2.0f*Psi)*cc ;           // Q
-      PHOTONS.z  +=  p * sz * sin(2.0f*Psi)*cc ;           // U   -- IAU convention, Psi East of North
-      TAU        +=  DTAU ;
-      colden     +=  sx*dens ;   // GL*H, later scaled with DX => H*pc
-
-      if (Y_SHEAR!=0.0f) {
-         // We are dealing with a shearing box simulation -- assume periodicity in the
-         // x and y directions, shear Y_SHEAR [root grid cells] between the high and the low x edges
-         //  ==>  ray continues from x=0 to x=NX-1 but y-coordinate is shifted by -Y_SHEAR
-         //       ray continues from x=NX-1 to x=0 but y-coordinate is shifted by +Y_SHEAR
-         //  left = -Y_SHEAR, right = +Y_SHEAR
-         if ((ind<0)&&(los<MAXLOS)) {           // if we reach MAXLOS, do not try to continue
-            if ((POS.z>0.0f)&&(POS.z<NZ)) {     // ray exited but not on the z boundaries
-               if (POS.y<0.0f) POS.y = NY-PEPS ;
-               if (POS.y>NY)   POS.y = +PEPS ;
-               if (POS.x<0.0f) {
-                  POS.x = NX-PEPS ;    POS.y = fmod(POS.y+NY-Y_SHEAR, (float)NY) ;
-               }
-               if (POS.x>NX)   {
-                  POS.x = +PEPS   ;    POS.y = fmod(POS.y   +Y_SHEAR, (float)NY) ;
-               }
-               ind = Index(&POS) ;            
-            }         
+      if (los>MINLOS) {
+         if (los>MAXLOS) {                       // restricted integration length (MAXLOS in grid units)
+            ind = -1 ;  POS.z = -1.0f ;
+            sx  =  MAXLOS-(los-sx) ;             // actual step, up to distance MAXLOS, [MAXLOS]=GL
          }
-      }
-      
+         DTAU    =  sx*dens*EXT ;                // [sx]=GL, [EXT] = extinction/H/GL
+         // for LOS along x,  Psi = atan2(By, Bz), gamma  = atan2(Bx, sqrt(By*By+Bz*Bz)) ;
+         //   Psi    = angle east of north, in the plane of the sky --- full 2*pi !!!
+         //   Psi is in IAU convention   tan(2*Psi) = U/Q, Psi = 0.5*atan2(U,Q)
+         //   gamma  = angle away from the POS = 90 - angle wrt. DIR
+         //    cos(gamma) = sin(complement)
+         BN.x = Bx[oind] ;  BN.y = By[oind] ;  BN.z = Bz[oind] ;
+#if (POLRED>0)
+         p = length(BN) ; sss
+#endif
+         BN = normalize(BN) ;
+         
+         // Psi angle from North to East -- assumes that RA points to left
+         // add 0.5*PI so that this becomes angle of polarised emission, not of B
+         float Psi  =  0.5*PI+atan2(dot(BN, HRA), dot(BN, HDE)) ; // ANGLE FOR POLARISED EMISSION, NOT B
+         float cc   =  0.99999f - 0.99998f * dot(BN, DIR)*dot(BN, DIR) ; // cos(gamma)^2
+         // [sx]=GL, [EMIT]=emission/pc/H  ==>  sx*DX = step lenth in parsecs
+         if (DTAU<1.0e-3f) {
+            sz = exp(-TAU) *  (1.0f-0.5f*DTAU)        * (sx*DX) * EMIT[oind]*dens ;
+         } else {
+            sz = exp(-TAU) * ((1.0f-exp(-DTAU))/DTAU) * (sx*DX) * EMIT[oind]*dens ;
+         }
+         
+         PHOTONS.x  +=      sz * (1.0f-p*(cc-0.6666667f)) ;   // I
+         PHOTONS.y  +=  p * sz * cos(2.0f*Psi)*cc ;           // Q
+         PHOTONS.z  +=  p * sz * sin(2.0f*Psi)*cc ;           // U   -- IAU convention, Psi East of North
+         TAU        +=  DTAU ;
+         colden     +=  sx*dens ;   // GL*H, later scaled with DX => H*pc
+       
+         if (Y_SHEAR!=0.0f) {
+            // We are dealing with a shearing box simulation -- assume periodicity in the
+            // x and y directions, shear Y_SHEAR [root grid cells] between the high and the low x edges
+            //  ==>  ray continues from x=0 to x=NX-1 but y-coordinate is shifted by -Y_SHEAR
+            //       ray continues from x=NX-1 to x=0 but y-coordinate is shifted by +Y_SHEAR
+            //  left = -Y_SHEAR, right = +Y_SHEAR
+            if ((ind<0)&&(los<MAXLOS)) {           // if we reach MAXLOS, do not try to continue
+               if ((POS.z>0.0f)&&(POS.z<NZ)) {     // ray exited but not on the z boundaries
+                  if (POS.y<0.0f) POS.y = NY-PEPS ;
+                  if (POS.y>NY)   POS.y = +PEPS ;
+                  if (POS.x<0.0f) {
+                     POS.x = NX-PEPS ;    POS.y = fmod(POS.y+NY-Y_SHEAR, (float)NY) ;
+                  }
+                  if (POS.x>NX)   {
+                     POS.x = +PEPS   ;    POS.y = fmod(POS.y   +Y_SHEAR, (float)NY) ;
+                  }
+                  ind = Index(&POS) ;            
+               }         
+            }
+         }
+      }   
    } // while ind>=0  --- loop until ray exits the model volume or MAXLOS is reached
    
    
