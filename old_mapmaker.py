@@ -396,7 +396,6 @@ def calc_IQU(domain,deltas,smax,Nside=4,center=[0,0,0],
  
         ds=deltas*3.085677581467192e+18
         dtau=sigma*nH*ds
-        dtau=1.0
  
         I=Bnu*(1.0-p0*(cosgam2-2./3.0))*dtau
         Q=p0*Bnu*cos2phi*cosgam2*dtau

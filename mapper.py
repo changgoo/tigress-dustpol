@@ -11,14 +11,25 @@ from vtk_reader import *
 import set_units
 from physical_dust import HD_dust_model
 
+narg=len(sys.argv)
+if narg < 4:
+    print("need arguments: read_vtk= [True,False], nside = [int], GPU = [0,1]")
+    sys.exit()
+
+read_vtk = eval(sys.argv[1])
+
 units      = set_units.set_units(muH=1.4271)
 dust_model = HD_dust_model('./')
-ds         = AthenaDataSet('./R8_8pc_rst.rad.0300.vtk')
+#ds         = AthenaDataSet('./R8_8pc_rst.rad.0300.vtk')
+mhdfile = '/tigress/changgoo/R8_4pc_newacc/id0/R8_4pc_newacc.0350.vtk'
+radfile = '/tigress/jk11/radps_postproc/R8_4pc_newacc.xymax1024/vtk/R8_4pc_newacc.0251.vtk'
+ds         = AthenaDataSet(radfile)
+dsmhd      = AthenaDataSet(mhdfile)
+print(ds.domain['time'],dsmhd.domain['time'])
 
-if (0):
+if (read_vtk):
     # This reads the data... and dumps to plain binary files for faster access
-    dsmhd      = AthenaDataSet('./R8_8pc_rst.0300.vtk')
-    for k,v in ds.domain.iteritems():
+    for k,v in ds.domain.items():
         if k != 'field_map': print(k,v)
     # read hydrogen number density and radiation energy density from './R8_8pc_rst.rad.0300.vtk' file
     # note that rad_energy_density0 is EUV field
@@ -47,7 +58,7 @@ if (0):
         plt.show()
     # dump RT data to plain binary files
     NZ, NY, NX = nH.shape   # we call the indices (z,y,x)
-    fp = file('test.nH', 'wb')
+    fp = open('test.nH', 'wb')
     np.asarray([NZ, NY, NX], np.int32).tofile(fp)
     np.asarray(nH,  np.float32).tofile(fp)
     fp.close()
@@ -75,10 +86,10 @@ if (0):
     
     
 # ========================================================================================
-GPU    =  1                   # GPU=0 => use CPU, GPU=1 => use GPU
+GPU    =  eval(sys.argv[3])   # GPU=0 => use CPU, GPU=1 => use GPU
 dx     =  ds.domain['dx'][0]  # Cell size [pc]
 dy     =  ds.domain['dx'][1]  # Cell size [pc]
-nside  =  eval(sys.argv[1])         # Healpix size parameter, 12*nside*nside pixels
+nside  =  eval(sys.argv[2])         # Healpix size parameter, 12*nside*nside pixels
 ext    =   0.0                # Extinction  [1/pc] for unit H density
 obspos =  [1.0, 1.0, 1.0]     # Position of the observer (x,y,z) [pc] relative to the centre of the cube
 maxlos = 3500.
@@ -86,14 +97,10 @@ shear  = True
 qshear = 1.0
 Omega  = 0.028
 tsim   = ds.domain['time']
-Lx     = ds.domain['right_edge'][0] - ds.domain['left_edge'][0]
-Ly     = ds.domain['right_edge'][1] - ds.domain['left_edge'][1]
-qomL   = qshear*Omega*Lx
-if shear:
-    yshear = np.mod(qomL*tsim,Ly)/dy
-else:
-    yshear = 0.0
-print(yshear)
+vsh=qshear*Omega*ds.domain['Lx'][0]
+yshear=(vsh*ds.domain['time']) % ds.domain['Lx'][1]
+jshear=yshear/ds.domain['dx'][1]
+print(jshear)
 
 from HPmapper import *
 import healpy
@@ -116,7 +123,7 @@ else:   # Plot (I, Q, U, N)
     Snu  /= np.ravel(nH)*dx
     # =====================================================================
     I, Q, U, N  = PolHealpixMapper(dx, nside, ext, obspos, nH, Snu, Bx, By, Bz, GPU=GPU,
-                                   y_shear=yshear, maxlos=maxlos, p0=0.2, polred=0)
+                                   y_shear=jshear, maxlos=maxlos, p0=0.2, polred=0)
     print("PolHealpixMapper: %.2f seconds" % (time.time()-t0))
     ##  NSIDE=1024   CPU= 5.7 seconds, GPU=1.2 seconds
     ##  NSIDE=2048   CPU=20.1 seconds, GPU=2.2 seconds  ... 1.74 seconds with cached kernel
@@ -131,7 +138,7 @@ else:   # Plot (I, Q, U, N)
 # =====================================================================
 # With old_mapmaker
 
-if (1):
+if (0):
     Snu = np.fromfile('test.Snu', np.float32).reshape(NZ, NY, NX)
 
     from old_mapmaker import los_dump_from_data,calc_IQU

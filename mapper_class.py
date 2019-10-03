@@ -1,31 +1,47 @@
 import numpy as np
 import astropy.constants as ac
 import astropy.units as au
+import os
 
 class data_container(object):
-    def __init__(self,mhdfile,radfile=None):
+    def __init__(self,mhdfile,radfile=None,dust_model='MBB'):
         from vtk_reader import AthenaDataSet
         dsmhd=AthenaDataSet(mhdfile)
+        dust_model_list=['MBB','HD','simple']
+        if not (dust_model in dust_model_list):
+            print("{} is not a supported dust model")
+            print("choose from",dust_model_list)
+            return 
+        self.dust_model_label = dust_model
         if radfile != None:
             self.dsrad=AthenaDataSet(radfile)
             print(dsmhd.domain['time'],self.dsrad.domain['time'])
             self.ART=True
         else:
             self.ART=False
+            self.dust_model_label = 'simple'
         self.dx = dsmhd.domain['dx'][0]
         self.time = dsmhd.domain['time']
         self.dsmhd = dsmhd
         
-        self._set_dust_model()
+        self._set_dust_model(dust_model)
         self._set_shear()
         
-    def _set_dust_model(self):
+    def _set_dust_model(self,dust_model):
+        from dust_models import HD_dust_model,simple_dust_model, MBB_dust_model
         if self.ART:
-            from physical_dust import HD_dust_model
-            self.dust_model = HD_dust_model('./')
+            if dust_model == 'HD': 
+                self.dust_model = HD_dust_model('./')
+                self.dust_model_label = 'HD'
+            elif dust_model == 'MBB': 
+                self.dust_model = MBB_dust_model()
+                self.dust_model_label = 'MBB'
+            else: 
+                self.dustmodel = simple_dust_model()
+                self.dust_model_label = 'simple'
         else:
-            from simple_dust import simple_dust_model
             self.dust_model = simple_dust_model()
+            self.dust_model_label = 'simple'
                 
     def _set_shear(self):
         dsmhd=self.dsmhd
@@ -68,30 +84,34 @@ class data_container(object):
 
     def _dump_data(self,nH,G0,Bx,By,Bz):
         NZ, NY, NX = nH.shape   # we call the indices (z,y,x)
-        fp = open('test.nH', 'wb')
+        fp = open('tmp.nH', 'wb')
         np.asarray([NZ, NY, NX], np.int32).tofile(fp)
         np.asarray(nH,  np.float32).tofile(fp)
         fp.close()
-        np.asarray(G0,  np.float32).tofile('test.G0')
-        np.asarray(Bx,  np.float32).tofile('test.Bx')
-        np.asarray(By,  np.float32).tofile('test.By')
-        np.asarray(Bz,  np.float32).tofile('test.Bz')
+        np.asarray(G0,  np.float32).tofile('tmp.G0')
+        np.asarray(Bx,  np.float32).tofile('tmp.Bx')
+        np.asarray(By,  np.float32).tofile('tmp.By')
+        np.asarray(Bz,  np.float32).tofile('tmp.Bz')
 
     def _load_data(self):
-        NZ, NY, NX = np.fromfile('test.nH', np.int32, 3)
-        nH  = np.fromfile('test.nH' , np.float32)[3:].reshape(NZ, NY, NX)
-        G0  = np.fromfile('test.G0',  np.float32)
-        Bx  = np.fromfile('test.Bx',  np.float32)
-        By  = np.fromfile('test.By',  np.float32)
-        Bz  = np.fromfile('test.Bz',  np.float32)
+        NZ, NY, NX = np.fromfile('tmp.nH', np.int32, 3)
+        nH  = np.fromfile('tmp.nH' , np.float32)[3:].reshape(NZ, NY, NX)
+        G0  = np.fromfile('tmp.G0',  np.float32)
+        Bx  = np.fromfile('tmp.Bx',  np.float32)
+        By  = np.fromfile('tmp.By',  np.float32)
+        Bz  = np.fromfile('tmp.Bz',  np.float32)
         return nH,G0,Bx,By,Bz
 
     def calc_Snu(self,freq,load=False):
+        dirname='./Snu'
+        if not os.path.isdir(dirname): os.mkdir(dirname)
+        ds=self.dsmhd
+        filename='{}/{}.{}.{}.{}.Snu'.format(dirname,ds.id,ds.step,freq,self.dust_model_label)
         if load:
-            Snu = np.fromfile('test.Snu.{}'.format(freq),  np.float32)
+            Snu = np.fromfile(filename,  np.float32)
         else:
             Snu = self.dust_model.calculate_Snu(self.G0,freq)
-            np.asarray(Snu,  np.float32).tofile('test.Snu.{}'.format(freq))
+            np.asarray(Snu,  np.float32).tofile(filename.format(freq))
         self.Snu = Snu
         
 class mapper(object):
@@ -127,3 +147,14 @@ class mapper(object):
         self.U = U
         self.N = N
         if timing: print("PolHealpixMapper: %.2f seconds" % (time.time()-t0))
+
+    def write_map(self,fileinfo):
+        import healpy as hp
+        filename=get_mapfilename(fileinfo)
+        hp.write_map(filename,[self.I,self.Q,-self.U],overwrite=True)
+        print(filename)
+
+def get_mapfilename(fileinfo):
+    filename='maps/{pid}.{step}.N{nside}.f{freq}.{dust}.x{x}y{y}z{z}.IQU.fits'
+    filename=filename.format(**fileinfo)
+    return filename
