@@ -84,30 +84,37 @@ class data_container(object):
 
     def _dump_data(self,nH,G0,Bx,By,Bz):
         NZ, NY, NX = nH.shape   # we call the indices (z,y,x)
-        fp = open('tmp.nH', 'wb')
+        dirname='./tmp'
+        ds=self.dsmhd
+        if not os.path.isdir(dirname): os.mkdir(dirname)
+        fp = open('{}/{}.{}.nH'.format(dirname,ds.id,ds.step), 'wb')
         np.asarray([NZ, NY, NX], np.int32).tofile(fp)
         np.asarray(nH,  np.float32).tofile(fp)
         fp.close()
-        np.asarray(G0,  np.float32).tofile('tmp.G0')
-        np.asarray(Bx,  np.float32).tofile('tmp.Bx')
-        np.asarray(By,  np.float32).tofile('tmp.By')
-        np.asarray(Bz,  np.float32).tofile('tmp.Bz')
+        np.asarray(G0,  np.float32).tofile('{}/{}.{}.G0'.format(dirname,ds.id,ds.step))
+        np.asarray(Bx,  np.float32).tofile('{}/{}.{}.Bx'.format(dirname,ds.id,ds.step))
+        np.asarray(By,  np.float32).tofile('{}/{}.{}.By'.format(dirname,ds.id,ds.step))
+        np.asarray(Bz,  np.float32).tofile('{}/{}.{}.Bz'.format(dirname,ds.id,ds.step))
 
     def _load_data(self):
-        NZ, NY, NX = np.fromfile('tmp.nH', np.int32, 3)
-        nH  = np.fromfile('tmp.nH' , np.float32)[3:].reshape(NZ, NY, NX)
-        G0  = np.fromfile('tmp.G0',  np.float32)
-        Bx  = np.fromfile('tmp.Bx',  np.float32)
-        By  = np.fromfile('tmp.By',  np.float32)
-        Bz  = np.fromfile('tmp.Bz',  np.float32)
+        dirname='./tmp'
+        if not os.path.isdir(dirname): os.mkdir(dirname)
+        ds=self.dsmhd
+        head='{}/{}.{}'.format(dirname,ds.id,ds.step)
+        NZ, NY, NX = np.fromfile('{}.nH'.format(head), np.int32, 3)
+        nH  = np.fromfile('{}.nH'.format(head), np.float32)[3:].reshape(NZ, NY, NX)
+        G0  = np.fromfile('{}.G0'.format(head), np.float32)
+        Bx  = np.fromfile('{}.Bx'.format(head), np.float32)
+        By  = np.fromfile('{}.By'.format(head), np.float32)
+        Bz  = np.fromfile('{}.Bz'.format(head), np.float32)
         return nH,G0,Bx,By,Bz
 
-    def calc_Snu(self,freq,load=False):
+    def calc_Snu(self,freq,overwrite=False):
         dirname='./Snu'
         if not os.path.isdir(dirname): os.mkdir(dirname)
         ds=self.dsmhd
         filename='{}/{}.{}.{}.{}.Snu'.format(dirname,ds.id,ds.step,freq,self.dust_model_label)
-        if load:
+        if os.path.isfile(filename) and (not overwrite):
             Snu = np.fromfile(filename,  np.float32)
         else:
             Snu = self.dust_model.calculate_Snu(self.G0,freq)
